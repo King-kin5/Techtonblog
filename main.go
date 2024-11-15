@@ -243,6 +243,6 @@ func main() {
 		posts = []Post{} // Initialize empty list if no data file exists
 	}
 
-	http.ListenAndServe("0.0.0.0:10000", nil)
+	http.ListenAndServe(":8080", nil)
 
 }
