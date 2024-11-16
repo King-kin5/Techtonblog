@@ -193,38 +193,44 @@ func isAuthenticated(c echo.Context) bool {
 }
 
 func main() {
-	e := echo.New()
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+    e := echo.New()
+    e.Use(middleware.Logger())
+    e.Use(middleware.Recover())
 
-	os.MkdirAll("data", os.ModePerm)
-	os.MkdirAll("uploads", os.ModePerm)
-	os.MkdirAll("static", os.ModePerm)
+    // Create necessary directories
+    os.MkdirAll("data", os.ModePerm)
+    os.MkdirAll("uploads", os.ModePerm)
+    os.MkdirAll("static", os.ModePerm)
 
-	if err := loadPosts(); err != nil {
-		posts = []Post{}
-	}
+    // Load posts from file
+    if err := loadPosts(); err != nil {
+        e.Logger.Warnf("Could not load posts: %v. Starting with an empty post list.", err)
+        posts = []Post{}
+    }
 
-	e.GET("/home", mainHandler)
-	e.GET("/post", postHandler)
-	e.GET("/admin", adminHandler)
-	e.POST("/new", newPostHandler)
-	e.GET("/login", loginHandler)
-	e.POST("/login", loginHandler)
-	e.GET("/logout", logoutHandler)
-	e.POST("/delete", deletePostHandler)
-	e.GET("/new", newPostFormHandler) // Render the "New Post" form
+    // Routes
+    e.GET("/", func(c echo.Context) error {
+        return c.Redirect(http.StatusMovedPermanently, "/home")
+    })
+    e.GET("/home", mainHandler)
+    e.GET("/post", postHandler)
+    e.GET("/admin", adminHandler)
+    e.GET("/login", loginHandler)
+    e.POST("/login", loginHandler)
+    e.GET("/logout", logoutHandler)
+    e.GET("/new", newPostFormHandler) // Render the "New Post" form
     e.POST("/new", newPostHandler)   // Handle the form submission
-	e.Static("/static", "static")
-	e.Static("/uploads", "uploads")
+    e.POST("/delete", deletePostHandler)
 
-	e.Logger.Fatal(e.Start(":8080"))
+    // Static file routes
+    e.Static("/static", "static")
+    e.Static("/uploads", "uploads")
 
-		// Start server
-		port := os.Getenv("PORT")
-		if port == "" {
-			port = "8080" // Default port
-		}
-		e.Logger.Fatal(e.Start(":" + port))
-	
+    // Start the server
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "8080" // Default port
+    }
+    e.Logger.Infof("Starting server on port %s", port)
+    e.Logger.Fatal(e.Start(":" + port))
 }
