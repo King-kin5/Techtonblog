@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Admin Dashboard</title>
+ <link href="/static/css/tailwind.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans">
+ <header class="bg-blue-800 text-white py-6 shadow-lg">
+   <div class="container mx-auto text-center">
+     <h1 class="text-4xl font-bold">Admin Dashboard</h1>
+     <div class="mt-4">
+       <a href="/new" class="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition">Create New Post</a>
+       <a href="/logout" class="bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700 transition ml-4">Logout</a>
+     </div>
+   </div>
+ </header>
+ <main class="container mx-auto py-8">
+   <h2 class="text-2xl font-bold">Existing Posts</h2>
+   <section class="grid gap-8 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1">
+    {{range .Posts}}
+    <article class="bg-white shadow-lg rounded-lg overflow-hidden">
+        <div class="p-6">
+            <h2 class="text-2xl font-bold mb-2">{{.Title}}</h2>
+            <p class="text-gray-600 mb-4">{{.CreatedAt.Format "Jan 2, 2006"}}</p>
+            <a href="/post?id={{.ID}}" class="text-blue-600 hover:underline">Read More</a>
+            <form action="/delete?id={{.ID}}" method="post" class="mt-4">
+                <button type="submit" class="bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700 transition">Delete</button>
+            </form>
+        </div>
+    </article>
+    {{end}}
+</section>
+
+ </main>
+</body>
+</html>

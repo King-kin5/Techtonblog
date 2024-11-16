@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link href="/static/css/tailwind.css" rel="stylesheet">
+  <title>Admin Login - My Blog</title>
+  <script>
+    function showAlert() {
+      alert("Password is wrong. Please try again.");
+    }
+
+    // Function to handle form submission
+    async function handleSubmit(event) {
+      event.preventDefault(); // Prevent default form submission
+      const formData = new FormData(event.target); // Get form data
+
+      const response = await fetch(event.target.action, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include' // Include cookies in the request
+      });
+
+      if (response.status === 200) {
+        // Redirect to the admin page if login is successful
+        window.location.href = '/admin';
+      } else {
+        // Show alert if the password is incorrect
+        showAlert();
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-100 font-sans">
+  <header class="bg-blue-900 text-white p-6 text-center">
+    <h1 class="text-3xl">Admin Login</h1>
+  </header>
+
+  <main class="container mx-auto p-6 max-w-lg">
+    <form method="post" action="/login" class="bg-white p-6 rounded-lg shadow-md" onsubmit="handleSubmit(event)">
+      <label for="password" class="block text-lg font-semibold mb-2">Password</label>
+      <input type="password" id="password" name="password" required
+        class="w-full p-2 border rounded mb-4 focus:outline-none focus:ring-2 focus:ring-blue-600">
+      <button type="submit" class="mt-4 bg-blue-600 text-white p-2 rounded w-full hover:bg-blue-700 transition">
+        Login
+      </button>
+    </form>
+  </main>
+</body>
+</html>
