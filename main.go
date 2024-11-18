@@ -225,6 +225,10 @@ func isAuthenticated(c echo.Context) bool {
 	cookie, err := c.Cookie("isAdmin")
 	return err == nil && cookie.Value == "true"
 }
+func aboutMeHandler(c echo.Context) error {
+ tmpl := template.Must(template.ParseFiles("templates/about.html")) // Assuming the HTML file is named "about.html" and is in the project root
+ return tmpl.Execute(c.Response().Writer, nil)
+}
 
 func main() {
 	e := echo.New()
@@ -254,6 +258,7 @@ func main() {
 	e.GET("/logout", logoutHandler)
 	e.GET("/new", newPostFormHandler)
 	e.POST("/new", newPostHandler)
+	e.GET("/about", aboutMeHandler)
 	e.POST("/delete", deletePostHandler)
 
 	// Static file routes
