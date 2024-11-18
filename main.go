@@ -1,46 +1,72 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"html/template"
 	"io"
+	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
-
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
 
-type Post struct {
-	ID        int       `json:"id"`
-	Title     string    `json:"title"`
-	Content   string    `json:"content"`
-	ImageURL  string    `json:"image_url"`
-	CreatedAt time.Time `json:"created_at"`
-}
+// Declare the adminPassword as a package-level variable
+var adminPassword string
 
-var posts []Post
-const adminPassword = "king1234" // Replace this with a secure password
-
-func loadPosts() error {
-	file, err := os.ReadFile("data/posts.json")
-	if err != nil {
-		return err
+func init() {
+	// Load .env file
+	if err := godotenv.Load(); err != nil {
+		log.Fatal("Error loading .env file")
 	}
-	return json.Unmarshal(file, &posts)
+
+	// Set admin password from environment variable
+	adminPassword = os.Getenv("ADMIN_PASSWORD")
+	if adminPassword == "" {
+		log.Fatal("ADMIN_PASSWORD not set in .env file")
+	}
 }
+
+// Post struct for blog posts
+type Block struct {
+    Type    string `json:"type"`    // e.g., "paragraph" or "image"
+    Content string `json:"content"` // Content for paragraph or image URL
+}
+
+type Post struct {
+    ID        int       `json:"id"`
+    Title     string    `json:"title"`
+    Blocks    []Block   `json:"blocks"`
+    ImageData string    `json:"image_data"` // Field to store the image in base64 format
+    CreatedAt time.Time `json:"created_at"`
+}
+
+
+var posts []Post // Holds all blog posts
 
 func savePosts() error {
-	data, err := json.MarshalIndent(posts, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile("data/posts.json", data, 0644)
+    data, err := json.MarshalIndent(posts, "", "  ")
+    if err != nil {
+        return err
+    }
+    return os.WriteFile("data/posts.json", data, 0644)
 }
 
+func loadPosts() error {
+    file, err := os.ReadFile("data/posts.json")
+    if err != nil {
+        return err
+    }
+    return json.Unmarshal(file, &posts)
+}
+
+
+// Handlers
 func mainHandler(c echo.Context) error {
 	tmpl := template.Must(template.ParseFiles("templates/index.html"))
 	isAdmin := isAuthenticated(c)
@@ -113,13 +139,12 @@ func logoutHandler(c echo.Context) error {
 }
 
 func newPostFormHandler(c echo.Context) error {
-    if !isAuthenticated(c) {
-        return c.Redirect(302, "/login")
-    }
+	if !isAuthenticated(c) {
+		return c.Redirect(302, "/login")
+	}
 
-    // Render the "New Post" form
-    tmpl := template.Must(template.ParseFiles("templates/new.html"))
-    return tmpl.Execute(c.Response().Writer, nil)
+	tmpl := template.Must(template.ParseFiles("templates/new.html"))
+	return tmpl.Execute(c.Response().Writer, nil)
 }
 
 func newPostHandler(c echo.Context) error {
@@ -127,44 +152,53 @@ func newPostHandler(c echo.Context) error {
         return c.Redirect(302, "/login")
     }
 
-    // Handle form submission
     title := c.FormValue("title")
-    content := c.FormValue("content")
-    file, err := c.FormFile("image")
-    var imageURL string
 
-    if err == nil {
+    // Parse blocks from form
+    blocksJSON := c.FormValue("blocks")
+    var blocks []Block
+    if err := json.Unmarshal([]byte(blocksJSON), &blocks); err != nil {
+        return echo.NewHTTPError(http.StatusBadRequest, "Invalid blocks format")
+    }
+
+    var imageData string
+    file, err := c.FormFile("image")
+    if err == nil && file != nil {
         src, err := file.Open()
         if err != nil {
-            return echo.NewHTTPError(500, "Error opening file")
+            return echo.NewHTTPError(http.StatusInternalServerError, "Error opening uploaded file")
         }
         defer src.Close()
 
-        os.MkdirAll("uploads", os.ModePerm)
-        imagePath := filepath.Join("uploads", file.Filename)
-        dst, err := os.Create(imagePath)
-        if err != nil {
-            return echo.NewHTTPError(500, "Error saving file")
+        // Read file contents
+        buf := new(bytes.Buffer)
+        if _, err := io.Copy(buf, src); err != nil {
+            return echo.NewHTTPError(http.StatusInternalServerError, "Error reading uploaded file")
         }
-        defer dst.Close()
 
-        if _, err := io.Copy(dst, src); err != nil {
-            return echo.NewHTTPError(500, "Error copying file")
-        }
-        imageURL = "/" + imagePath
+        // Encode file contents as base64
+        imageData = base64.StdEncoding.EncodeToString(buf.Bytes())
     }
 
     newPost := Post{
         ID:        len(posts) + 1,
         Title:     title,
-        Content:   content,
-        ImageURL:  imageURL,
+        Blocks:    blocks,
+        ImageData: imageData,
         CreatedAt: time.Now(),
     }
+
     posts = append(posts, newPost)
-    savePosts()
+    if err := savePosts(); err != nil {
+        log.Printf("Error saving posts: %v", err)
+        return echo.NewHTTPError(http.StatusInternalServerError, "Failed to save posts")
+    }
+
     return c.Redirect(302, "/home")
 }
+
+
+
 
 
 func deletePostHandler(c echo.Context) error {
@@ -193,44 +227,44 @@ func isAuthenticated(c echo.Context) bool {
 }
 
 func main() {
-    e := echo.New()
-    e.Use(middleware.Logger())
-    e.Use(middleware.Recover())
+	e := echo.New()
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
 
-    // Create necessary directories
-    os.MkdirAll("data", os.ModePerm)
-    os.MkdirAll("uploads", os.ModePerm)
-    os.MkdirAll("static", os.ModePerm)
+	// Create necessary directories
+	os.MkdirAll("data", os.ModePerm)
+	os.MkdirAll("uploads", os.ModePerm)
+	os.MkdirAll("static", os.ModePerm)
+	e.Static("/uploads", "uploads")
+	// Load posts from file
+	if err := loadPosts(); err != nil {
+		e.Logger.Warnf("Could not load posts: %v. Starting with an empty post list.", err)
+		posts = []Post{}
+	}
 
-    // Load posts from file
-    if err := loadPosts(); err != nil {
-        e.Logger.Warnf("Could not load posts: %v. Starting with an empty post list.", err)
-        posts = []Post{}
-    }
+	// Routes
+	e.GET("/", func(c echo.Context) error {
+		return c.Redirect(http.StatusMovedPermanently, "/home")
+	})
+	e.GET("/home", mainHandler)
+	e.GET("/post", postHandler)
+	e.GET("/admin", adminHandler)
+	e.GET("/login", loginHandler)
+	e.POST("/login", loginHandler)
+	e.GET("/logout", logoutHandler)
+	e.GET("/new", newPostFormHandler)
+	e.POST("/new", newPostHandler)
+	e.POST("/delete", deletePostHandler)
 
-    // Routes
-    e.GET("/", func(c echo.Context) error {
-        return c.Redirect(http.StatusMovedPermanently, "/home")
-    })
-    e.GET("/home", mainHandler)
-    e.GET("/post", postHandler)
-    e.GET("/admin", adminHandler)
-    e.GET("/login", loginHandler)
-    e.POST("/login", loginHandler)
-    e.GET("/logout", logoutHandler)
-    e.GET("/new", newPostFormHandler) // Render the "New Post" form
-    e.POST("/new", newPostHandler)   // Handle the form submission
-    e.POST("/delete", deletePostHandler)
+	// Static file routes
+	e.Static("/static", "static")
+	e.Static("/uploads", "uploads")
 
-    // Static file routes
-    e.Static("/static", "static")
-    e.Static("/uploads", "uploads")
-
-    // Start the server
-    port := os.Getenv("PORT")
-    if port == "" {
-        port = "8080" // Default port
-    }
-    e.Logger.Infof("Starting server on port %s", port)
-    e.Logger.Fatal(e.Start(":" + port))
+	// Start the server
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // Default port
+	}
+	e.Logger.Infof("Starting server on port %s", port)
+	e.Logger.Fatal(e.Start(":" + port))
 }
